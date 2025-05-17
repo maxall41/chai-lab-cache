@@ -10,7 +10,8 @@ import tempfile
 import time
 import typing
 from pathlib import Path
-
+import os
+import pickle
 import pandas as pd
 import requests
 from tqdm import tqdm
@@ -313,6 +314,17 @@ def generate_colabfold_msas(
 
     Places .aligned.pqt files in msa_dir; does not save intermediate a3m files.
     """
+    collective_hash = "".join([hash_sequence(seq) for seq in protein_seqs])
+    if os.path.exists('cached_msas.pkl'):
+        with open('cached_msas.pkl', 'rb') as file:
+            cached_msas = pickle.load(file)
+        if collective_hash in cached_msas:
+            print("|||||| Using MSA cache! ||||||")
+            return cached_msas[collective_hash]
+    else:
+        print("NO CACHE FILE FOUND!")
+        cached_msas = {}
+    
     assert msa_dir.is_dir(), "MSA directory must be a dir"
     assert not any(msa_dir.iterdir()), "MSA directory must be empty"
     if not protein_seqs:
@@ -455,4 +467,7 @@ def generate_colabfold_msas(
                 # times. The MSAs should be identical for each.
                 aligned_df.to_parquet(msa_path)
                 msa_paths[protein_seq] = msa_path
+    cached_msas[collective_hash] = msa_paths
+    with open('cached_msas.pkl', 'wb') as file:
+        pickle.dump(cached_msas, file)
     return msa_paths
